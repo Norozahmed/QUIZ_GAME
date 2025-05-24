@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tech Quiz Game</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div class="background-container">
+        <div class="background-image blur-effect"></div>
+    </div>
+    <div class="container">
+        <div id="app" class="quiz-container fade-in">
+            <!-- Content will be dynamically loaded here -->
+        </div>
+    </div>
+
+    <script>
+        const app = document.getElementById('app');
+        let currentQuestionIndex = 0;
+        let score = 0;
+        let questions = [];
+        let quizStarted = false;
+
+        // DOM Elements
+        function renderWelcomeScreen() {
+            app.innerHTML = `
+                <div class="welcome-screen">
+                    <h1>Welcome to the Tech Quiz Game!</h1>
+                    <p>Test your knowledge of tech acronyms with this 20-question quiz.</p>
+                    <button id="startBtn" class="btn-primary">
+                        Start Quiz
+                    </button>
+                </div>
+            `;
+            
+            document.getElementById('startBtn').addEventListener('click', startQuiz);
+        }
+
+        function renderQuestion(question) {
+            const progress = ((currentQuestionIndex) / questions.length) * 100;
+            
+            app.innerHTML = `
+                <div class="question-screen">
+                    <div class="progress-container">
+                        <div class="progress-info">
+                            <span>Question ${currentQuestionIndex + 1} of ${questions.length}</span>
+                            <span class="score">Score: ${score}</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${progress}%"></div>
+                        </div>
+                    </div>
+                    
+                    <h2>${question.question}</h2>
+                    
+                    <div class="answer-input">
+                        <input type="text" id="answerInput" placeholder="Your answer...">
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button id="skipBtn" class="btn-secondary">
+                            Skip
+                        </button>
+                        <button id="submitBtn" class="btn-primary">
+                            Submit
+                        </button>
+                    </div>
+
+                </div>
+            `;
+            
+            document.getElementById('submitBtn').addEventListener('click', checkAnswer);
+            document.getElementById('skipBtn').addEventListener('click', nextQuestion);
+            document.getElementById('answerInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    checkAnswer();
+                }
+            });
+        }
+
+        function renderFeedback(isCorrect, correctAnswer) {
+            app.innerHTML = `
+                <div class="feedback-screen">
+                    <div class="progress-container">
+                        <div class="progress-info">
+                            <span>Question ${currentQuestionIndex + 1} of ${questions.length}</span>
+                            <span class="score">Score: ${score}</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${((currentQuestionIndex + 1) / questions.length) * 100}%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="feedback-content">
+                        <h2>${questions[currentQuestionIndex].question}</h2>
+                        
+                        ${isCorrect ? 
+                            `<div class="feedback-correct">
+                                <p>Correct!</p>
+                            </div>` : 
+                            `<div class="feedback-incorrect">
+                                <p>Incorrect!</p>
+                                <p>The correct answer is: <span>${correctAnswer}</span></p>
+                            </div>`
+                        }
+                    </div>
+                    
+                    <button id="nextBtn" class="btn-primary">
+                        ${currentQuestionIndex < questions.length - 1 ? 'Next Question' : 'See Results'}
+                    </button>
+                </div>
+            `;
+            
+            document.getElementById('nextBtn').addEventListener('click', nextQuestion);
+        }
+
+        function renderResults() {
+            const percentage = (score / questions.length) * 100;
+            let message = '';
+            
+            if (percentage >= 80) {
+                message = 'Excellent work! You really know your tech acronyms.';
+            } else if (percentage >= 60) {
+                message = 'Good job! You have a solid understanding of tech terms.';
+            } else if (percentage >= 40) {
+                message = 'Not bad! You know some tech terms but could learn more.';
+            } else {
+                message = 'Keep learning! You might want to brush up on tech terminology.';
+            }
+            
+            app.innerHTML = `
+                <div class="results-screen">
+                    <h1>Quiz Completed!</h1>
+                    
+                    <div class="score-display ${percentage >= 70 ? 'high-score' : percentage >= 50 ? 'medium-score' : 'low-score'}">
+                        <div class="score-number">${score}/${questions.length}</div>
+                        <div class="score-percentage">${percentage.toFixed(1)}%</div>
+                    </div>
+                    
+                    <p class="result-message">${message}</p>
+                    
+                    <button id="restartBtn" class="btn-primary">
+                        Play Again
+                    </button>
+                </div>
+            `;
+            
+            document.getElementById('restartBtn').addEventListener('click', () => {
+                currentQuestionIndex = 0;
+                score = 0;
+                startQuiz();
+            });
+        }
+
+        // Quiz Logic
+        async function startQuiz() {
+            try {
+                const response = await fetch('/api/questions');
+                questions = await response.json();
+                quizStarted = true;
+                currentQuestionIndex = 0;
+                score = 0;
+                renderQuestion(questions[currentQuestionIndex]);
+            } catch (error) {
+                console.error('Error loading questions:', error);
+                app.innerHTML = `
+                    <div class="error-message">
+                        <p>Failed to load questions. Please try again later.</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function checkAnswer() {
+            const userAnswer = document.getElementById('answerInput').value.trim();
+            if (!userAnswer) return;
+            
+            const questionId = questions[currentQuestionIndex].id;
+            
+            try {
+                const response = await fetch('/api/check-answer', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        questionId: questionId,
+                        answer: userAnswer
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.isCorrect) {
+                    score++;
+                }
+                
+                renderFeedback(result.isCorrect, result.correctAnswer);
+            } catch (error) {
+                console.error('Error checking answer:', error);
+            }
+        }
+
+        async function checkAnswer() {
+    const userAnswer = document.getElementById('answerInput').value.trim();
+    
+    // Add validation for empty answer
+    if (!userAnswer) {
+        showEmptyAnswerWarning();
+        return;
+    }
+    
+    const questionId = questions[currentQuestionIndex].id;
+    
+    try {
+        const response = await fetch('/api/check-answer', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                questionId: questionId,
+                answer: userAnswer
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.isCorrect) {
+            score++;
+        }
+        
+        renderFeedback(result.isCorrect, result.correctAnswer);
+    } catch (error) {
+        console.error('Error checking answer:', error);
+    }
+}
+
+// Add this new function
+function showEmptyAnswerWarning() {
+    const answerInput = document.getElementById('answerInput');
+    answerInput.classList.add('empty-warning');
+    
+    // Create warning message element if it doesn't exist
+    let warningElement = document.getElementById('empty-warning');
+    if (!warningElement) {
+        warningElement = document.createElement('div');
+        warningElement.id = 'empty-warning';
+        warningElement.className = 'warning-message';
+        warningElement.textContent = 'Please enter an answer before submitting!';
+        answerInput.parentNode.insertBefore(warningElement, answerInput.nextSibling);
+    }
+    
+    // Remove warning after 3 seconds
+    setTimeout(() => {
+        answerInput.classList.remove('empty-warning');
+        if (warningElement) {
+            warningElement.remove();
+        }
+    }, 3000);
+}
+
+        function nextQuestion() {
+            currentQuestionIndex++;
+            
+            if (currentQuestionIndex < questions.length) {
+                renderQuestion(questions[currentQuestionIndex]);
+            } else {
+                renderResults();
+            }
+        }
+
+        // Initialize
+        renderWelcomeScreen();
+    </script>
+</body>
+</html>
