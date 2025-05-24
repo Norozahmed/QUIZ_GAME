@@ -19,7 +19,7 @@ A web-based interactive Tech Quiz Game where users can test their knowledge of t
 
 ## Demo
 
-![Quiz Game Screenshot](static/qdesktop.jpeg)
+![Quiz Game Screenshot](static/final.png)
 
 ---
 
